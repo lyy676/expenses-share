@@ -121,8 +121,8 @@
 <div id="balance"></div>
 
 <script>
-  const API_URL = 'https://api.airtable.com/v0/app8ayw8w65qc0ovA/Table%201'; 
-  const API_KEY = 'patMQmYTX4Du8j8FP.febf624979d27db30ad4de2a51df58c208685256ae37755c609e6895bb8dc0d9';
+  const API_URL = 'https://api.airtable.com/v0/app8ayw8w65qc0ovA/Table%201';
+  const API_KEY = 'patLQ1UZN1UgQoLOU.38e7b3c4fffc3d2172271f410d8a7bf0886a43096650d97e9417dc9b1948f206';
 
   function loadExpenses() {
     fetch(API_URL, {
@@ -132,11 +132,8 @@
     })
     .then(res => res.json())
     .then(data => {
-      // 按照日期排序（升序）
       const sortedRecords = data.records.sort((a, b) => {
-        const dateA = new Date(a.fields.date);
-        const dateB = new Date(b.fields.date);
-        return dateA - dateB;
+        return new Date(a.fields.date) - new Date(b.fields.date);
       });
 
       const tbody = document.querySelector('#expenseTable tbody');
@@ -159,15 +156,12 @@
   }
 
   function deleteExpense(id) {
-    if (confirm("确定要删除这条记录吗？")) {
-      fetch(`${API_URL}/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${API_KEY}`
-        }
-      })
-      .then(() => loadExpenses());
-    }
+    fetch(`${API_URL}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${API_KEY}`
+      }
+    }).then(() => loadExpenses());
   }
 
   function calculateBalance(expenses) {
@@ -189,25 +183,31 @@
 
     document.getElementById('balance').innerHTML = `
       <strong>平摊费用计算:</strong><br>
-      你还需支付: ${balanceYou < 0 ? -balanceYou : 0}元<br>
-      她还需支付: ${balanceHer < 0 ? -balanceHer : 0}元
+      你还需支付: ${balanceYou < 0 ? -balanceYou : 0} 元<br>
+      她还需支付: ${balanceHer < 0 ? -balanceHer : 0} 元
     `;
   }
 
   document.getElementById('expenseForm').addEventListener('submit', function (e) {
     e.preventDefault();
+
     const date = document.getElementById('date').value;
     const item = document.getElementById('item').value;
-    const amount = Number(document.getElementById('amount').value);
+    const amount = parseFloat(document.getElementById('amount').value);
     const paidBy = document.getElementById('paidBy').value;
 
-    if (isNaN(amount) || amount <= 0) {
-      alert("请输入有效的金额！");
+    if (!date || !item || isNaN(amount) || !paidBy) {
+      alert("请完整填写所有信息！");
       return;
     }
 
     const newRecord = {
-      fields: { date, item, amount, paidBy }
+      fields: {
+        date: date,
+        item: item,
+        amount: amount,
+        paidBy: paidBy
+      }
     };
 
     fetch(API_URL, {
@@ -218,15 +218,19 @@
       },
       body: JSON.stringify({ records: [newRecord] })
     })
+    .then(res => {
+      if (!res.ok) return res.text().then(err => { throw new Error(err) });
+      return res.json();
+    })
     .then(() => {
       document.getElementById('expenseForm').reset();
-      loadExpenses(); // 加载并排序
+      loadExpenses();
+    })
+    .catch(error => {
+      console.error("上传出错:", error.message);
+      alert("上传失败，请检查 Airtable 表格字段名是否正确。");
     });
   });
 
-  loadExpenses(); // 初始加载
+  loadExpenses();
 </script>
-
-</body>
-</html>
-
