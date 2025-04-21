@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>两人花销记录</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f9f9f9;
+      padding: 40px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #333;
+    }
+    form {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      margin-bottom: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4CAF50;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+      background-color: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      text-align: left;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .delete-btn {
+      background-color: #e74c3c;
+      color: white;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .delete-btn:hover {
+      background-color: #c0392b;
+    }
+    #balance {
+      margin-top: 20px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>两人花销记录</h1>
+
+<form id="expenseForm">
+  <label for="date">日期:</label>
+  <input type="date" id="date" required>
+
+  <label for="item">项目:</label>
+  <input type="text" id="item" required>
+
+  <label for="amount">金额:</label>
+  <input type="number" id="amount" required>
+
+  <label for="paidBy">付款人:</label>
+  <select id="paidBy" required>
+    <option value="你">你</option>
+    <option value="她">她</option>
+  </select>
+
+  <button type="submit">添加记录</button>
+</form>
+
+<h2>花销记录</h2>
+<table id="expenseTable">
+  <thead>
+    <tr>
+      <th>日期</th>
+      <th>项目</th>
+      <th>金额</th>
+      <th>付款人</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<div id="balance"></div>
+
+<script>
+  const API_URL = 'https://api.airtable.com/v0/app8ayw8w65qc0ovA/Table%201'; 
+  const API_KEY = 'patMQmYTX4Du8j8FP.3b896ed917aed2be5b091390683facd71337cf5f064e3419d5e3874a5e64edf4';
+
+  function loadExpenses() {
+    fetch(API_URL, {
+      headers: {
+        Authorization: `Bearer ${API_KEY}`
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      // 按照日期排序（升序）
+      const sortedRecords = data.records.sort((a, b) => {
+        const dateA = new Date(a.fields.date);
+        const dateB = new Date(b.fields.date);
+        return dateA - dateB;
+      });
+
+      const tbody = document.querySelector('#expenseTable tbody');
+      tbody.innerHTML = '';
+
+      sortedRecords.forEach(record => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${record.fields.date || ''}</td>
+          <td>${record.fields.item || ''}</td>
+          <td>${record.fields.amount || ''}</td>
+          <td>${record.fields.paidBy || ''}</td>
+          <td><button class="delete-btn" onclick="deleteExpense('${record.id}')">删除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      calculateBalance(sortedRecords);
+    });
+  }
+
+  function deleteExpense(id) {
+    if (confirm("确定要删除这条记录吗？")) {
+      fetch(`${API_URL}/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`
+        }
+      })
+      .then(() => loadExpenses());
+    }
+  }
+
+  function calculateBalance(expenses) {
+    let totalAmount = 0;
+    let userExpenses = { '你': 0, '她': 0 };
+
+    expenses.forEach(expense => {
+      const amount = expense.fields.amount || 0;
+      const paidBy = expense.fields.paidBy;
+      totalAmount += amount;
+      if (paidBy in userExpenses) {
+        userExpenses[paidBy] += amount;
+      }
+    });
+
+    const half = totalAmount / 2;
+    const balanceYou = userExpenses['你'] - half;
+    const balanceHer = userExpenses['她'] - half;
+
+    document.getElementById('balance').innerHTML = `
+      <strong>平摊费用计算:</strong><br>
+      你还需支付: ${balanceYou < 0 ? -balanceYou : 0}元<br>
+      她还需支付: ${balanceHer < 0 ? -balanceHer : 0}元
+    `;
+  }
+
+  document.getElementById('expenseForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const date = document.getElementById('date').value;
+    const item = document.getElementById('item').value;
+    const amount = Number(document.getElementById('amount').value);
+    const paidBy = document.getElementById('paidBy').value;
+
+    if (isNaN(amount) || amount <= 0) {
+      alert("请输入有效的金额！");
+      return;
+    }
+
+    const newRecord = {
+      fields: { date, item, amount, paidBy }
+    };
+
+    fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ records: [newRecord] })
+    })
+    .then(() => {
+      document.getElementById('expenseForm').reset();
+      loadExpenses(); // 加载并排序
+    });
+  });
+
+  loadExpenses(); // 初始加载
+</script>
+
+</body>
+</html>
+
